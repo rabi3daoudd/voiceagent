@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL');
 if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY');
@@ -10,7 +10,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Get all payment plans with their interest rates
     const { data: plans, error } = await supabase
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     // Format the response to clearly show interest rates
     const formattedPlans = plans.map(plan => ({
       name: plan.name,
-      interest_rate: `${plan.interest_modifier}%`,
+      interest_rate: `${plan.interest_modifier.toFixed(2)}%`,
       term_length: `${plan.term_months} months (${(plan.term_months / 12).toFixed(1)} years)`,
       description: plan.description
     }));

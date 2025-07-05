@@ -84,7 +84,7 @@ export async function POST(
 
     // Calculate payment details
     const principal = body.loan_amount - body.down_payment;
-    const effectiveRate = planData.interest_modifier / 100; // Use plan's interest modifier directly
+    const effectiveRate = planData.interest_modifier / 100;
     const monthlyPayment = calculateMonthlyPayment(principal, effectiveRate, planData.term_months);
     
     // Set start date and next payment date

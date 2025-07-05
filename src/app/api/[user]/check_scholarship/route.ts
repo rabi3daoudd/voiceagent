@@ -4,32 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL');
 if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY');
 
-// Define types for our database tables
-interface User {
-  user_id: number;
-  annual_income: number;
-  first_name: string;
-  last_name: string;
-}
-
-interface AcademicRecord {
-  id: number;
-  user_id: number;
-  gpa: number;
-  program: string;
-  year: number;
-}
-
-interface ScholarshipProgram {
-  scholarship_id: number;
-  name: string;
-  min_income: number;
-  max_income: number;
-  gpa_minimum: number;
-  max_amount: number;
-  description: string;
-}
-
 // Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -50,87 +24,28 @@ export async function GET(
       .eq('user_id', userId)
       .single();
 
-    if (userError) {
-      return NextResponse.json(
-        { error: 'Error fetching user data' },
-        { status: 500 }
-      );
-    }
-
-    if (!userData) {
+    if (userError || !userData) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    // Fetch user's academic record
-    const { data: academicData, error: academicError } = await supabase
-      .from('academic_records')
-      .select('*')
-      .eq('user_id', userId)
-      .order('year', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (academicError) {
-      return NextResponse.json(
-        { error: 'Error fetching academic records' },
-        { status: 500 }
-      );
-    }
-
-    // Fetch available scholarships
-    const { data: scholarships, error: scholarshipError } = await supabase
-      .from('scholarship_programs')
-      .select('*');
-
-    if (scholarshipError) {
-      return NextResponse.json(
-        { error: 'Error fetching scholarships' },
-        { status: 500 }
-      );
-    }
-
-    // Filter scholarships based on income and GPA requirements
-    const eligibleScholarships = scholarships?.filter(scholarship => {
-      const meetsIncome = userData.annual_income >= scholarship.min_income && 
-                         userData.annual_income <= scholarship.max_income;
-      const meetsGPA = (academicData?.gpa || 0) >= scholarship.gpa_minimum;
-      return meetsIncome && meetsGPA;
-    }) || [];
-
-    const reasons: string[] = [];
-    if (!academicData) {
-      reasons.push('No academic records found');
-    }
-
-    // Add detailed reasons for ineligibility
-    if (eligibleScholarships.length === 0) {
-      scholarships?.forEach(scholarship => {
-        if (userData.annual_income < scholarship.min_income) {
-          reasons.push(`Income below minimum requirement of $${scholarship.min_income} for ${scholarship.name}`);
-        } else if (userData.annual_income > scholarship.max_income) {
-          reasons.push(`Income above maximum threshold of $${scholarship.max_income} for ${scholarship.name}`);
-        }
-        if (academicData && academicData.gpa < scholarship.gpa_minimum) {
-          reasons.push(`GPA of ${academicData.gpa} does not meet minimum requirement of ${scholarship.gpa_minimum} for ${scholarship.name}`);
-        }
-      });
-    }
+    // Check eligibility based on income and GPA
+    const isEligible = userData.annual_income <= 50000 && userData.gpa >= 3.0;
 
     return NextResponse.json({
-      eligible: eligibleScholarships.length > 0,
-      scholarships: eligibleScholarships,
-      userData: {
-        annual_income: userData.annual_income,
-        gpa: academicData?.gpa || 0
-      },
-      reasons: reasons.filter((reason, index, self) => self.indexOf(reason) === index) // Remove duplicates
+      eligible: isEligible,
+      factors: {
+        income_eligible: userData.annual_income <= 50000,
+        gpa_eligible: userData.gpa >= 3.0,
+        current_income: userData.annual_income,
+        current_gpa: userData.gpa
+      }
     });
 
   } catch (error) {
-    console.error('Error checking scholarship eligibility:', error);
+    console.error('Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

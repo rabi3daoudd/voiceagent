@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Eagle } from '@picovoice/eagle-node';
-import { head } from '@vercel/blob';
+import { createClient } from '@supabase/supabase-js';
 
 // Helper to buffer the request body (audio file)
 async function getAudioBuffer(req: NextRequest): Promise<Buffer> {
@@ -22,14 +22,23 @@ export async function POST(req: NextRequest) {
     // Convert buffer to Int16Array (assuming 16-bit PCM LE)
     const audioData = new Int16Array(audioBuffer.buffer, audioBuffer.byteOffset, audioBuffer.length / 2);
 
-    // Fetch stored profile from Vercel Blob
-    const blobKey = `voice-profiles/${userId}.eagle`;
+    // Fetch stored profile from Supabase Storage
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    
     let profileBuffer: Buffer;
     try {
-      const meta = await head(blobKey);
-      const res = await fetch(meta.downloadUrl);
-      if (!res.ok) throw new Error('Failed to fetch profile blob');
-      const arrayBuffer = await res.arrayBuffer();
+      const { data, error } = await supabase.storage
+        .from(process.env.SUPABASE_BUCKET!)
+        .download(`${userId}.eagle`);
+      
+      if (error || !data) {
+        return NextResponse.json({ error: 'Voice profile not found for user' }, { status: 404 });
+      }
+      
+      const arrayBuffer = await data.arrayBuffer();
       profileBuffer = Buffer.from(arrayBuffer);
     } catch (e) {
       return NextResponse.json({ error: 'Voice profile not found for user' }, { status: 404 });

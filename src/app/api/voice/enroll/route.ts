@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { EagleProfiler, EagleProfilerEnrollFeedback } from '@picovoice/eagle-node';
-import { put } from '@vercel/blob';
+import { createClient } from '@supabase/supabase-js';
 
 // Helper to buffer the request body (audio file)
 async function getAudioBuffer(req: NextRequest): Promise<Buffer> {
@@ -49,9 +49,22 @@ export async function POST(req: NextRequest) {
     const speakerProfile = eagleProfiler.export();
     eagleProfiler.release();
 
-    // Store profile in Vercel Blob
-    const blobKey = `voice-profiles/${userId}.eagle`; // e.g., voice-profiles/123.eagle
-    await put(blobKey, Buffer.from(speakerProfile), { access: 'public' });
+    // Store profile in Supabase Storage
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    
+    const { error } = await supabase.storage
+      .from(process.env.SUPABASE_BUCKET!)
+      .upload(`${userId}.eagle`, Buffer.from(speakerProfile), {
+        contentType: 'application/octet-stream',
+        upsert: true,
+      });
+    
+    if (error) {
+      return NextResponse.json({ error: `Storage error: ${error.message}` }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true, message: 'Voice profile enrolled and stored.' });
   } catch (err: any) {
